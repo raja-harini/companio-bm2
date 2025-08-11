@@ -24,8 +24,8 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(Duration(seconds:2), () {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => HomePage()));
+    Future.delayed(Duration(seconds: 2), () {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => InitialPage()));
     });
   }
   @override
@@ -42,7 +42,38 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-class HomePage extends StatelessWidget {
+// NEW Initial page with 2 buttons
+class InitialPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text("Companio")),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ElevatedButton(
+              child: Text("Companio"),
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => CompanioControlPage()));
+              },
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              child: Text("Health Monitor"),
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => HealthMonitorPage()));
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Your existing CompanioControlPage (renamed HomePage -> CompanioControlPage)
+class CompanioControlPage extends StatelessWidget {
   // IMPORTANT: use "localhost" because adb reverse forwards device localhost to host.
   final String server = "http://localhost:5000";
   // Put your dev CONTROL_API_KEY here (must match server .env).
@@ -95,21 +126,96 @@ class HomePage extends StatelessWidget {
           ]),
           SizedBox(height:24),
           ElevatedButton(
-            onPressed: () async {
-              // status check
-              final url = Uri.parse("$server/status");
-              try {
-                final resp = await http.get(url, headers: headers);
-                final map = jsonDecode(resp.body);
-                final text = map.entries.map((e) => "${e.key}:${e.value}").join(", ");
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Status error: $e")));
-              }
-            },
-            child: Text("Check Status")
+              onPressed: () async {
+                // status check
+                final url = Uri.parse("$server/status");
+                try {
+                  final resp = await http.get(url, headers: headers);
+                  final map = jsonDecode(resp.body);
+                  final text = map.entries.map((e) => "${e.key}:${e.value}").join(", ");
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Status error: $e")));
+                }
+              },
+              child: Text("Check Status")
           )
         ]),
+      ),
+    );
+  }
+}
+
+// NEW HealthMonitorPage with language buttons calling /health_monitor/start
+class HealthMonitorPage extends StatelessWidget {
+  final String server = "http://localhost:5000";
+  static const String CONTROL_API_KEY = "1zVx8P4QfE9mU6sT2bW7yH0jR3dL8cKq";
+
+  final Map<String,String> headers = {
+    "Content-Type": "application/json",
+    "X-API-KEY": CONTROL_API_KEY
+  };
+
+  Future<void> _startHealthMonitor(BuildContext ctx, String language) async {
+    final url = Uri.parse("$server/health_monitor/start");
+    try {
+      final resp = await http.post(
+        url,
+        headers: headers,
+        body: jsonEncode({"language": language}),
+      ).timeout(Duration(seconds: 8));
+      if (resp.statusCode == 200) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text("Health Monitor started for $language")));
+      } else {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text("Failed to start: ${resp.body}")));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text("Error: $e")));
+    }
+  }
+
+  Future<void> _stopHealthMonitor(BuildContext ctx) async {
+    final url = Uri.parse("$server/health_monitor/stop");
+    try {
+      final resp = await http.post(url, headers: headers).timeout(Duration(seconds: 8));
+      if (resp.statusCode == 200) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text("Health Monitor stopped")));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text("Error stopping: $e")));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text("Health Monitor")),
+      body: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          children: [
+            Text("Select Language", style: TextStyle(fontSize: 18)),
+            SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                ElevatedButton(
+                    onPressed: () => _startHealthMonitor(context, "English"),
+                    child: Text("English")),
+                ElevatedButton(
+                    onPressed: () => _startHealthMonitor(context, "Tamil"),
+                    child: Text("Tamil")),
+                ElevatedButton(
+                    onPressed: () => _startHealthMonitor(context, "Hindi"),
+                    child: Text("Hindi")),
+              ],
+            ),
+            SizedBox(height: 24),
+            ElevatedButton(
+                onPressed: () => _stopHealthMonitor(context),
+                child: Text("Stop Health Monitor"))
+          ],
+        ),
       ),
     );
   }
